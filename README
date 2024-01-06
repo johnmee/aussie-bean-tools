@@ -1,5 +1,0 @@
-# Beancount tools (for Australia)
-
-* downloading transactions via the UpBank API
-* importing transactions from a St George Bank CSV file
-* completing new transactions by fuzzy-matching them against existing transactions

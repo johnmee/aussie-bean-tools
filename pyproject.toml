@@ -1,0 +1,16 @@
+[tool.poetry]
+name = "aussie-bean-tools"
+version = "0.1.0"
+description = "Beancounter tools for importing bank transactions."
+authors = ["John Mee <aussie-bean-tools@johnmee.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.scripts]
+upbank = 'aussie_bean_tools.upbank.upbank_sucker:cli'
