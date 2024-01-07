@@ -1,7 +1,7 @@
 import datetime
 from decimal import Decimal
 
-from . import stgeorge
+from .stgeorge import StGeorgeTransaction
 
 HEADER = "Date,Description,Debit,Credit,Balance"
 FIELDNAMES = HEADER.split(",")
@@ -14,7 +14,7 @@ def to_dict(raw):
 
 def test_simple_row():
     row = to_dict("09/02/2022,Su Australia 1479342325,,2089.84,32108.39")
-    trans = stgeorge.StGeorgeTransaction(row)
+    trans = StGeorgeTransaction(row)
     assert trans.narration == "Su Australia 1479342325"
     assert trans.date == datetime.date(2022, 2, 9)
     print(trans)
@@ -22,13 +22,13 @@ def test_simple_row():
 
 def test_datetime_row():
     row = to_dict(
-        "15/01/2022,Osko Deposit                  15Jan09:08 Eustacest Lile Walliak,,1000,26954.6"
+        "15/01/2022,Osko Deposit                  15Jan09:08 Ustacest Lile Malliak,,1000,26954.6"
     )
-    trans = stgeorge.StGeorgeTransaction(row)
+    trans = StGeorgeTransaction(row)
     assert trans.narration == "Osko Deposit"
     assert trans.date == datetime.date(2022, 1, 15)
     assert trans.credit == Decimal("1000")
-    assert trans.payee == "Eustacest Lile Walliak"
+    assert trans.payee == "Ustacest Lile Malliak"
     print(trans)
 
 
@@ -36,7 +36,7 @@ def test_location_row():
     row = to_dict(
         "28/01/2022,Visa Purchase                 25Jan Netflix.Com          Melbourne,22.99,,37374.03"
     )
-    trans = stgeorge.StGeorgeTransaction(row)
+    trans = StGeorgeTransaction(row)
     assert trans.narration == "Visa Purchase"
     assert trans.date == datetime.date(2022, 1, 28)
     assert trans.debit == Decimal("22.99")

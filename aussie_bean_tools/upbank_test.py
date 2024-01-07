@@ -2,7 +2,7 @@ import unittest
 from os import path
 
 from beancount.ingest import regression_pytest as regtest
-from upbank import UpbankImporter
+from .upbank_importer import UpbankImporter
 
 IMPORTER = UpbankImporter("Assets:Bank:John-Upbank", tags={"john"})
 

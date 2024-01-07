@@ -1,8 +1,6 @@
 """Up Bank API.
 
 Use the Up Bank API to retrieve transactions.
-
-> python upbank_sucker.py month 2022 02 > ../../raw/upbank/john/2022-02-trans-john.json
 """
 import datetime
 import click
