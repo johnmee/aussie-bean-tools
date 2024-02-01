@@ -6,10 +6,11 @@ authors = ["John Mee <aussie-bean-tools@johnmee.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = ">=3.7"
-fuzzywuzzy = "^0.18.0"
-click = "^8.1.7"
-beancount = "^2.3.6"
+python = ">=3.10"
+fuzzywuzzy = ">=0.18.0"
+click = ">=8.1.7"
+beancount = ">=2.3.6"
+python-levenshtein = {version = ">=0.24.0", optional = true}
 
 [build-system]
 requires = ["poetry-core"]
@@ -18,3 +19,6 @@ build-backend = "poetry.core.masonry.api"
 [tool.poetry.scripts]
 upbank = 'aussie_bean_tools.upbank_client:cli'
 fuzzer = 'aussie_bean_tools.fuzzer:fuzzer'
+
+[tool.poetry.extras]
+levenshtien = ["python-levenshtein"]
