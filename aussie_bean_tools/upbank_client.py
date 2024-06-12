@@ -183,5 +183,18 @@ def recent(days):
     click.echo(json.dumps(transactions, indent=3))
 
 
+@cli.command()
+@click.argument("days", type=click.types.INT, default=60)
+def held(days):
+    """Download held transactions.
+    """
+    global client
+    local_tz = datetime.datetime.utcnow().astimezone().tzinfo
+    now = datetime.datetime.utcnow().replace(tzinfo=local_tz)
+    since = now - datetime.timedelta(days=days)
+    transactions = client.transactions(since, status=HELD)
+    click.echo(json.dumps(transactions, indent=3))
+
+
 if __name__ == "__main__":
     cli()
