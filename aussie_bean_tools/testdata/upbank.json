@@ -1,0 +1,66 @@
+[
+   {
+      "type": "transactions",
+      "id": "aae5f69a-bbac-48ee-978c-dc06d8683eb6",
+      "attributes": {
+         "status": "SETTLED",
+         "rawText": "JOHN MEE",
+         "description": "JOHN MEE",
+         "message": "Up John",
+         "isCategorizable": true,
+         "holdInfo": null,
+         "roundUp": null,
+         "cashback": null,
+         "amount": {
+            "currencyCode": "AUD",
+            "value": "350.00",
+            "valueInBaseUnits": 35000
+         },
+         "foreignAmount": null,
+         "cardPurchaseMethod": null,
+         "settledAt": "2025-04-23T22:07:17+10:00",
+         "createdAt": "2025-04-23T22:07:17+10:00",
+         "transactionType": "Direct Credit",
+         "note": null,
+         "performingCustomer": {
+            "displayName": "$johnmee"
+         },
+         "deepLinkURL": "up://transaction/VHJhbnNhY3Rpb24tMTkwNjM2Njc4OA=="
+      },
+      "relationships": {
+         "account": {
+            "data": {
+               "type": "accounts",
+               "id": "20d89043-9d06-48cd-bb8c-b03d3f32423f"
+            },
+            "links": {
+               "related": "https://api.up.com.au/api/v1/accounts/20d89043-9d06-48cd-bb8c-b03d3f32423f"
+            }
+         },
+         "transferAccount": {
+            "data": null
+         },
+         "category": {
+            "data": null,
+            "links": {
+               "self": "https://api.up.com.au/api/v1/transactions/aae5f69a-bbac-48ee-978c-dc06d8683eb6/relationships/category"
+            }
+         },
+         "parentCategory": {
+            "data": null
+         },
+         "tags": {
+            "data": [],
+            "links": {
+               "self": "https://api.up.com.au/api/v1/transactions/aae5f69a-bbac-48ee-978c-dc06d8683eb6/relationships/tags"
+            }
+         },
+         "attachment": {
+            "data": null
+         }
+      },
+      "links": {
+         "self": "https://api.up.com.au/api/v1/transactions/aae5f69a-bbac-48ee-978c-dc06d8683eb6"
+      }
+   }
+]

@@ -1,0 +1,25 @@
+pushtag #john
+
+2025-01-02 * "XS Espresso" "XS ESPRESSO, REVESBY"   ;lunch with ray and lyn
+  Assets:Bank:John-Upbank  -91.35 AUD
+  Expenses:Food:Eatout
+
+2025-01-05 * "Transport for NSW" "TRANSPORTFORNSW OP,CHIPPENDALE"
+  Assets:Bank:John-Upbank    -40.00 AUD
+  Expenses:Transport:Public
+
+2025-01-08 * "Tier One Cafe - Chatswood" "LSP*Tier One Cafe, Chatswood"  ;the leeches walk with michael
+  Assets:Bank:John-Upbank  -32.46 AUD
+  Expenses:Food:Eatout
+
+2025-01-09 * "Euroespresso Machine Co. Pty Ltd" "EUROESPRESSO MACHIN1,ANNANDALE"
+  Assets:Bank:Fiona-Upbank  -64.95 AUD
+  Expenses:Food:Coffee
+
+2025-01-10 * "Dan Murphy's" "DAN MURPHY'S 1237, MANLY VALE"
+  Assets:Bank:John-Upbank  -126.33 AUD
+  Expenses:Food:Alcohol
+
+2025-01-11 balance Assets:Bank:John-Upbank 		 571.42 AUD
+
+poptag #john

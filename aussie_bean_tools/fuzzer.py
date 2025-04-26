@@ -11,14 +11,15 @@ from fuzzywuzzy import process
 
 
 def build_key(trans: data.Transaction) -> str:
-    """Return a string for comparing this trans against others."""
+    """Return a string for comparing the given transaction against others.
+    """
     components = [trans.payee, trans.narration, str(trans.postings[0].units)]
     return " ".join([c for c in components if c is not None])
 
 
 def mimic(entry, trans):
-    """Fill out the entry with parts copied from trans."""
-
+    """Complete the entry with postings copied from the transaction.
+    """
     # Copy postings to accounts not already there.
     entry_accounts = [p.account for p in entry.postings]
     added_postings = list()
@@ -32,39 +33,32 @@ def mimic(entry, trans):
         added_postings = [added_postings[0]._replace(units=None)]
     entry.postings.extend(added_postings)
 
-    # Copy the tags.
-    new_entry = entry._replace(tags=(entry.tags | trans.tags))
+    # Copy the tags, but remove& old #john and #fiona tags from individual entries
+    tags = entry.tags.union(trans.tags) - frozenset(["john", "fiona"])
+    new_entry = entry._replace(tags=tags)
     return new_entry
 
 
-@click.command
-@click.option(
-    "--threshold",
-    default=86,
-    show_default=True,
-    type=int,
-    help="Only use fuzz scores better than this.",
-)
-@click.option(
-    "--training",
-    show_default=True,
-    type=click.Path(exists=True),
-    default="master.beancount",
-    help="Beancount file to use as a template for predictions."
-)
-@click.argument("infile", type=click.Path(exists=True))
-def fuzzer(threshold, training, infile):
+def fuzzer(threshold: int, training: str, infile: str) -> str:
     """Autocomplete postings of transactions.
 
-    * Build a dictionary of past transactions and a summary key/description.
-    * For each transaction fuzzymatch it against the keys in the dictionary
-    * and copy the postings and tags of the matched transaction from history
+    Build a dictionary of past transactions and a summary key/description.
+    For each transaction fuzzymatch it against the keys in the dictionary
+    and copy the postings and tags of the matched transaction from history
+
+    Args:
+        threshold: only use fuzz scores better than this
+        training: name of beancount file to use for training
+        infile: name of partial beancount file to complete
+
+    Returns:
+        sends string output to stdout
     """
     existing, _, _ = loader.load_file(training)
     importing, errors, _ = parser.parse_file(infile)
     if not len(importing):
         print("Nothing to import.")
-        return
+        exit()
 
     # Assume the target account is the first posting found in the import file.
     # This means the training ignores postings targeted to other accounts.
@@ -103,5 +97,25 @@ def fuzzer(threshold, training, infile):
             printer.print_entry(proposal)
 
 
+@click.command
+@click.option(
+    "--threshold",
+    default=86,
+    show_default=True,
+    type=int,
+    help="Only use fuzz scores better than this.",
+)
+@click.option(
+    "--training",
+    show_default=True,
+    type=click.Path(exists=True),
+    default="master.beancount",
+    help="Beancount file to use as a template for predictions."
+)
+@click.argument("infile", type=click.Path(exists=True))
+def cli(threshold, training, infile):
+    fuzzer(threshold, training, infile)
+
+
 if __name__ == "__main__":
-    fuzzer()
+    cli()

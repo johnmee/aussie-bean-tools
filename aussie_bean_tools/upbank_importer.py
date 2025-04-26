@@ -57,11 +57,6 @@ class UpbankImporter(importer.ImporterProtocol):
                 assert "attributes" in trans
                 assert "relationships" in trans
                 assert "links" in trans
-
-            # Use the filename to determine which account.
-            assert any(tag in file.name for tag in self.tags), \
-                "Tag '%s' not found in filename '%s'" % (self.tags, file.name)
-
             return True
         except json.JSONDecodeError:
             pass
@@ -114,8 +109,10 @@ class UpbankImporter(importer.ImporterProtocol):
             )
             entries.append(txn)
 
-        # TODO: insert a balance line somehow?
-        #   The api-fetch will need to snapshot the current balance at that moment.
+        # I'd like to insert a balance line somehow but 'balance' is a vague concept
+        # to upbank... does it include settled, pending, and cleared amounts?
+        # The api-fetch can only snapshot a 'balance' at the moment of asking.
+
         return entries
 
     def file_account(self, file):
