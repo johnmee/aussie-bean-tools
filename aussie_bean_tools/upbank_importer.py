@@ -1,12 +1,20 @@
 import json
 
 from datetime import date
+from decimal import Decimal
 
 import beancount
 from beancount.core import data
 from beancount.core import flags
 from beancount.core import (account, amount, number)
 from beancount.ingest import importer
+from beancount.ingest import similar
+
+# Upbank amounts are exact decimal values with no rounding, so beancount's
+# default 5% amount tolerance causes false duplicate matches between
+# transactions of similar but distinct values (e.g. $6.95 vs $7.08).
+# Tighten to 0.1% to require near-exact amount matches.
+similar.SimilarityComparator.EPSILON = Decimal('0.001')
 
 # Upbank (up.com.au–Bendigo Bank) only operates in AUD, afaik.
 CURRENCY = "AUD"
