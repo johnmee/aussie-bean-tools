@@ -41,8 +41,8 @@ class StGeorgeTransaction:
         self._row = row
         self.date = datetime.strptime(row["Date"], "%d/%m/%Y").date()
         self.raw = row["Description"].strip()
-        self.credit = row["Credit"] if len(row["Credit"]) else None
-        self.debit = row["Debit"] if len(row["Debit"]) else None
+        self.credit = decimal.Decimal(row["Credit"]) if len(row["Credit"]) else None
+        self.debit = decimal.Decimal(row["Debit"]) if len(row["Debit"]) else None
         self.balance = row["Balance"] if len(row["Balance"]) else None
         self.effective_date = None
         self.effective_time = None
@@ -66,9 +66,6 @@ class StGeorgeTransaction:
             self.payee = self.raw[36:56].strip()
             self.location = self.raw[57:].strip() or None
 
-        for txt in [self.effective_date, self.effective_time, self.location]:
-            if txt is not None:
-                self.narration += " " + txt
 
     def __str__(self):
         return ",".join(self._row.values())
@@ -141,7 +138,7 @@ class StGeorgeImporter(importer.ImporterProtocol):
             if date_of_last and date_of_last.month != row.date.month:
                 balance = Balance(
                     new_metadata(file.name, lineno + 2),
-                    date(row.date.year, row.date.month, 1),
+                    date(date_of_last.year, date_of_last.month, 1),
                     self.account_name,
                     amount.Amount(number.D(row.balance), CURRENCY),
                     None,

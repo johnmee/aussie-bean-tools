@@ -1,7 +1,11 @@
 import datetime
+import os
+import tempfile
 from decimal import Decimal
 
-from .stgeorge import StGeorgeTransaction
+from beancount.core.data import Balance
+
+from .stgeorge import StGeorgeImporter, StGeorgeTransaction
 
 HEADER = "Date,Description,Debit,Credit,Balance"
 FIELDNAMES = HEADER.split(",")
@@ -45,3 +49,32 @@ def test_location_row():
 
     # row = to_dict("07/02/2022,Visa Purchase O/Seas          05Feb Usd22.64 Porkbun.Com,32.12,,30087.9")
     # trans = stgeorge.StGeorgeTransaction(row)
+
+
+def test_balance_at_month_start():
+    # CSV is newest-first; balance 350 is after the last April transaction,
+    # which equals the account balance at the opening of May 1.
+    csv_content = (
+        "Date,Description,Debit,Credit,Balance\n"
+        "15/05/2026,May Purchase,100,,250\n"
+        "28/04/2026,April Credit,,100,350\n"
+        "15/04/2026,April Purchase,50,,250\n"
+    )
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as f:
+        f.write(csv_content)
+        tmpname = f.name
+
+    class MockFile:
+        name = tmpname
+
+    try:
+        entries = StGeorgeImporter("Assets:Bank:Test").extract(MockFile())
+    finally:
+        os.unlink(tmpname)
+
+    balance_entries = [e for e in entries if isinstance(e, Balance)]
+    assert len(balance_entries) == 1
+    bal = balance_entries[0]
+    assert bal.date == datetime.date(2026, 5, 1), f"expected 2026-05-01, got {bal.date}"
+    assert bal.amount.number == Decimal("350")
+    assert bal.amount.currency == "AUD"
