@@ -131,9 +131,12 @@ class StGeorgeImporter(importer.ImporterProtocol):
           extracted from the file.
         """
         date_of_last = None
+        first_row = None
         entries = []
         for lineno, row in enumerate(StGeorgeTransaction.csv_reader(file)):
-            # TODO: balance is printed as 0.1 AUD, not 0.10 AUD?
+            if first_row is None:
+                first_row = row
+
             # Declare the balance at the start of a new month.
             if date_of_last and date_of_last.month != row.date.month:
                 balance = Balance(
@@ -173,6 +176,17 @@ class StGeorgeImporter(importer.ImporterProtocol):
             entries.append(Transaction(**txn_args))
 
             date_of_last = row.date
+
+        if first_row:
+            entries.append(Balance(
+                new_metadata(file.name, 1),
+                first_row.date + timedelta(days=1),
+                self.account_name,
+                amount.Amount(number.D(first_row.balance), CURRENCY),
+                None,
+                None,
+            ))
+
         return entries
 
     def file_account(self, file):
