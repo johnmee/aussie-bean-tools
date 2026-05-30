@@ -6,6 +6,7 @@ and autocompleting the routine transactions.
 * downloads transactions with the UpBank API
 * completes new transactions, by fuzzy-matching them against existing transactions
 * imports transactions from a St George Bank CSV file
+* comments out transactions that are already recorded in another account's file
 * sends an email via fastmail.com
 
 # Example
@@ -91,3 +92,31 @@ Options:
 ```
 
 May issue a warning.  Works fine, but slower without. Install `python-Levenshtein` if desired.
+
+## Bean-comment
+
+Silence transfers already recorded in another account file by commenting them out.
+
+When importing into a joint account, some transactions (e.g. transfers to a personal
+account) are already fully recorded elsewhere. Running `bean-comment` after `fuzzer`
+prefixes those transactions with `;` so they appear in the file for reference but are
+ignored by beancount.
+
+```commandline
+Usage: bean-comment [OPTIONS] ACCOUNTS...
+
+  Read beancount from stdin; comment out transactions posting to ACCOUNTS.
+
+  Any transaction that contains a posting to one of the given ACCOUNTS has
+  every line prefixed with ';', turning it into a beancount comment block.
+  All other transactions pass through unchanged.
+
+  Typical use: pipe fuzzer output through bean-comment before appending to
+  your ledger, to silence transfers that are already recorded in another
+  account's file.
+
+  Example:
+      fuzzer /tmp/joint.beancount \
+          | bean-comment Assets:Bank:John-Upbank Assets:Bank:Fiona-Upbank \
+          >> joint-freedom-2026.beancount
+```
