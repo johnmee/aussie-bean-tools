@@ -1,7 +1,5 @@
 import click
 
-from more_itertools import last
-
 from beancount.core import data
 from beancount import loader
 from beancount.parser import printer
@@ -93,7 +91,7 @@ def fuzzer(threshold: int, training: str, infile: str) -> str:
         if score <= threshold:
             printer.print_entry(entry)
         else:
-            proposal = mimic(entry, last(transactions[match_key]))
+            proposal = mimic(entry, transactions[match_key][-1])
             printer.print_entry(proposal)
 
 
