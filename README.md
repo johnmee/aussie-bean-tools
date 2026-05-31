@@ -67,6 +67,48 @@ CONFIG = [
 ]
 ```
 
+# St George
+
+Download a date-ranged transaction CSV by driving a browser, since St George has
+no public API. A persistent browser profile keeps the device "remembered", so 2FA
+is only needed on the first run.
+
+One-time browser install:
+```commandline
+$ playwright install chromium
+```
+
+Credentials come from the environment. The internet password is *not stored* by
+default — it is prompted (hidden) each run unless you opt in by setting
+`STGEORGE_PASSWORD`:
+```commandline
+$ export STGEORGE_ACCESS_NUMBER=...
+$ export STGEORGE_SECURITY_NUMBER=...
+$ # optional opt-in, otherwise you are prompted:
+$ # export STGEORGE_PASSWORD=...
+```
+
+Download an account's transactions for a date range:
+```commandline
+$ stgeorge download --account "Complete Freedom" \
+    --from 2026-05-01 --to 2026-05-30 --output joint.csv
+```
+
+```commandline
+Usage: stgeorge [OPTIONS] COMMAND [ARGS]...
+
+Options:
+  --access-number TEXT    Customer access number (env STGEORGE_ACCESS_NUMBER).
+  --security-number TEXT  Security number (env STGEORGE_SECURITY_NUMBER).
+  --password TEXT         Internet password. Unset by default -> prompted each run.
+  --profile-dir TEXT      Persistent browser profile dir (keeps the remembered device).
+  --headed / --headless   Headed browser so 2FA can be completed by hand.
+  --help                  Show this message and exit.
+
+Commands:
+  download  Download a date-ranged transaction CSV for one account.
+```
+
 ## Fuzzer
 
 Add the cross account posting to routine beancount transactions.

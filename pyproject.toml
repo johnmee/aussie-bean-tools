@@ -8,6 +8,7 @@ dependencies = [
     "beancount==2.3.6",
     "click>=8.1.8",
     "fuzzywuzzy>=0.18.0",
+    "playwright>=1.60.0",
     "python-levenshtein>=0.27.1",
 ]
 
@@ -15,6 +16,7 @@ dependencies = [
 upbank = "aussie_bean_tools.upbank_client:cli"
 fuzzer = "aussie_bean_tools.fuzzer:cli"
 bean-comment = "aussie_bean_tools.comment:cli"
+stgeorge = "aussie_bean_tools.stgeorge_client:cli"
 
 [tool.uv]
 package = true
