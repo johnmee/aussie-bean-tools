@@ -56,11 +56,8 @@ def _extract_from_csv(csv_content):
         f.write(csv_content)
         tmpname = f.name
 
-    class MockFile:
-        name = tmpname
-
     try:
-        return StGeorgeImporter("Assets:Bank:Test").extract(MockFile())
+        return StGeorgeImporter("Assets:Bank:Test").extract(tmpname)
     finally:
         os.unlink(tmpname)
 

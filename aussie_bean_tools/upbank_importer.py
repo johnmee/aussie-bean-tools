@@ -1,26 +1,21 @@
 import json
 
 from datetime import date
-from decimal import Decimal
 
 import beancount
 from beancount.core import data
 from beancount.core import flags
 from beancount.core import (account, amount, number)
-from beancount.ingest import importer
-from beancount.ingest import similar
+import beangulp
+from beangulp import cache
 
-# Upbank amounts are exact decimal values with no rounding, so beancount's
-# default 5% amount tolerance causes false duplicate matches between
-# transactions of similar but distinct values (e.g. $6.95 vs $7.08).
-# Tighten to 0.1% to require near-exact amount matches.
-similar.SimilarityComparator.EPSILON = Decimal('0.001')
+from .dedup import exact_amount_comparator
 
 # Upbank (up.com.au–Bendigo Bank) only operates in AUD, afaik.
 CURRENCY = "AUD"
 
 
-class UpbankImporter(importer.ImporterProtocol):
+class UpbankImporter(beangulp.Importer):
     """Interface that all source importers need to comply with.
     """
 
@@ -36,23 +31,24 @@ class UpbankImporter(importer.ImporterProtocol):
         self.account_name = account_name
         self.tags = tags
 
+    # Upbank posts exact amounts, so only exactly-equal amounts are duplicates
+    # (see dedup.exact_amount_comparator); a percentage tolerance would falsely
+    # merge distinct transactions such as $6.95 and $7.08.
+    cmp = staticmethod(exact_amount_comparator)
+
+    @property
     def name(self):
-        """
-        Returns:
-          A string which uniquely identifies this importer.
-        """
         return "Upbank"
 
-    __str__ = name
-
-    def identify(self, file):
+    def identify(self, filepath):
         """Return true if this importer matches the given file.
 
         Args:
-          file: A cache.FileMemo instance.
+          filepath: Filesystem path to the document to be matched.
         Returns:
           A boolean, true if this importer can handle this file.
         """
+        file = cache.get_file(filepath)
         try:
             # Is a json file with specific structure and attributes.
             transactions = json.loads(file.contents())
@@ -72,11 +68,11 @@ class UpbankImporter(importer.ImporterProtocol):
             pass
         return False
 
-    def extract(self, file, existing_entries=None):
+    def extract(self, filepath, existing_entries=None):
         """Extract transactions from a file.
 
         Args:
-          file: A cache.FileMemo instance.
+          filepath: Filesystem path to the document being imported.
           existing_entries: An optional list of existing directives loaded from
             the ledger which is intended to contain the extracted entries. This
             is only provided if the user provides them via a flag in the
@@ -85,6 +81,7 @@ class UpbankImporter(importer.ImporterProtocol):
           A list of new, imported directives (usually mostly Transactions)
           extracted from the file.
         """
+        file = cache.get_file(filepath)
         # Open the file as json
         transactions = json.loads(file.contents())
         entries = []
@@ -123,7 +120,7 @@ class UpbankImporter(importer.ImporterProtocol):
 
         return entries
 
-    def file_account(self, file):
+    def account(self, filepath):
         """Return an account associated with the given file.
 
         Note: If you don't implement this method you won't be able to move the
@@ -140,7 +137,7 @@ class UpbankImporter(importer.ImporterProtocol):
         """
         return self.account_name
 
-    def file_name(self, file):
+    def filename(self, filepath):
         """A filter that optionally renames a file before filing.
 
         This is used to make tidy filenames for filed/stored document files. If
@@ -157,15 +154,15 @@ class UpbankImporter(importer.ImporterProtocol):
         account_str = self.account_name.split(":")[-1]
         return f"{account_str}.json"
 
-    def file_date(self, file):
+    def date(self, filepath):
         """Attempt to obtain a date that corresponds to the given file.
 
         Args:
-          file: A cache.FileMemo instance.
+          filepath: Filesystem path to the document being imported.
         Returns:
           A date object, if successful, or None if a date could not be extracted.
           (If no date is returned, the file creation time is used. This is the
           default.)
         """
         # Date of last transaction in the file.
-        return self.extract(file)[-1].date
+        return self.extract(filepath)[-1].date

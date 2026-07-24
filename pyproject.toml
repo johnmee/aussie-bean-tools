@@ -5,11 +5,13 @@ description = "Beancounter tools for importing bank transactions."
 readme = "README.md"
 requires-python = "~=3.10.17"
 dependencies = [
-    "beancount==2.3.6",
+    "beancount>=3.2.3",
+    "beangulp>=0.2.0",
     "click>=8.1.8",
     "fuzzywuzzy>=0.18.0",
     "playwright>=1.60.0",
     "python-levenshtein>=0.27.1",
+    "requests>=2.32",
 ]
 
 [project.scripts]

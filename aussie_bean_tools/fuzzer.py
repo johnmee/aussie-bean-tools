@@ -54,16 +54,25 @@ def fuzzer(threshold: int, training: str, infile: str) -> str:
     """
     existing, _, _ = loader.load_file(training)
     importing, errors, _ = parser.parse_file(infile)
-    if not len(importing):
-        print("Nothing to import.")
-        exit()
 
     # Assume the target account is the first posting found in the import file.
     # This means the training ignores postings targeted to other accounts.
+    target_account = None
     for directive in importing:
         if isinstance(directive, data.Transaction):
             target_account = directive.postings[0].account
             break
+
+    # Nothing to autocomplete: the import has no transactions. This happens when
+    # the source had no in-range rows, or every row was a duplicate the extractor
+    # commented out, leaving only balance directives. Emit a comment marker plus
+    # any remaining directives (e.g. balances) so the output stays valid
+    # beancount when appended to the ledger, and skip fuzzy matching.
+    if target_account is None:
+        print("; Nothing to import.")
+        for entry in importing:
+            printer.print_entry(entry)
+        return
 
     # Build a dictionary of historical entries.
     transactions = {}

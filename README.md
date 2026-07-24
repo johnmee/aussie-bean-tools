@@ -17,7 +17,7 @@ $ upbank --token $UPBANK_TOKEN recent > /tmp/upbank.json
 ```
 Convert transactions from json to beancount format... 
 ```
-$ bean-extract -e master.beancount bean.config /tmp/upbank.json > /tmp/up.beancount
+$ python bean.config extract -e master.beancount /tmp/upbank.json > /tmp/up.beancount
 ```
 Autocomplete transactions by fuzzy matching against past transactions...
 ```
@@ -25,7 +25,7 @@ $ fuzzer /tmp/up.beancount
 ```
 Convert transactions from stgeorge csv to beancount format, and autocomplete...
 ```commandline
-$ bean-extract -e master.beancount bean.config stgeorge.csv | fuzzer
+$ python bean.config extract -e master.beancount stgeorge.csv | fuzzer
 ```
 
 # Upbank
@@ -55,16 +55,18 @@ I put it into an environment variable for easy usage.
 
 ### bean.config
 
-Beancount needs a config file something like this for `bean-extract` to work.
+Beancount v3 (beangulp) importer configs are executable scripts. Run the config
+directly, e.g. `python bean.config extract -e master.beancount /tmp/upbank.json`.
 
 ```bean.config
-from aussie_bean_tools import upbank
-from aussie_bean_tools import stgeorge
+from aussie_bean_tools import UpbankImporter
+from aussie_bean_tools import StGeorgeImporter
+from beangulp import Ingest
 
-CONFIG = [
-  upbank.UpbankImporter("Assets:Bank:Upbank"),
-  stgeorge.StGeorgeImporter("Assets:Bank:StGeorge:Freedom"),
-]
+Ingest([
+  UpbankImporter("Assets:Bank:Upbank"),
+  StGeorgeImporter("Assets:Bank:StGeorge:Freedom"),
+])()
 ```
 
 # St George

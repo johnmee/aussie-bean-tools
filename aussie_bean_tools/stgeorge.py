@@ -1,14 +1,16 @@
 import csv
 import decimal
 import re
-
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 
 import beancount
-from beancount.core.data import EMPTY_SET, Posting, Transaction, new_metadata, Balance
-from beancount.core import flags, amount, number
-from beancount.ingest import importer
+import beangulp
+from beancount.core import amount, flags, number
+from beancount.core.data import EMPTY_SET, Balance, Posting, Transaction, new_metadata
+from beangulp import cache
+
+from .dedup import exact_amount_comparator
 
 CURRENCY = "AUD"
 
@@ -77,11 +79,17 @@ class StGeorgeTransaction:
                 yield StGeorgeTransaction(row)
 
 
-class StGeorgeImporter(importer.ImporterProtocol):
+class StGeorgeImporter(beangulp.Importer):
     """Interface that all source importers need to comply with."""
 
     # A flag to use on new transaction. Override this flag as you prefer.
     FLAG = flags.FLAG_OKAY
+
+    # StGeorge posts exact amounts, like Upbank, so only exactly-equal amounts
+    # are duplicates (see dedup.exact_amount_comparator). v2 enforced this
+    # globally via a SimilarityComparator.EPSILON monkeypatch; in beangulp the
+    # comparison is per-importer, so it must be set here too.
+    cmp = staticmethod(exact_amount_comparator)
 
     def __init__(self, account_name, tags=EMPTY_SET):
         """
@@ -92,17 +100,11 @@ class StGeorgeImporter(importer.ImporterProtocol):
         self.account_name = account_name
         self.tags = tags
 
+    @property
     def name(self):
-        """Return a unique id/name for this importer.
-
-        Returns:
-          A string which uniquely identifies this importer.
-        """
         return "St George Bank"
 
-    __str__ = name
-
-    def identify(self, file):
+    def identify(self, filepath):
         """Return true if this importer matches the given file.
 
         St George offers a CSV export.
@@ -111,17 +113,18 @@ class StGeorgeImporter(importer.ImporterProtocol):
         export as, and save to file.
 
         Args:
-          file: A cache.FileMemo instance.
+          filepath: Filesystem path to the document to be matched.
         Returns:
           A boolean, true if this importer can handle this file.
         """
+        file = cache.get_file(filepath)
         return re.match("Date,Description,Debit,Credit,Balance", file.head())
 
-    def extract(self, file, existing_entries=None):
+    def extract(self, filepath, existing_entries=None):
         """Extract transactions from a file.
 
         Args:
-          file: A cache.FileMemo instance.
+          filepath: Filesystem path to the document being imported.
           existing_entries: An optional list of existing directives loaded from
             the ledger which is intended to contain the extracted entries. This
             is only provided if the user provides them via a flag in the
@@ -130,6 +133,7 @@ class StGeorgeImporter(importer.ImporterProtocol):
           A list of new, imported directives (usually mostly Transactions)
           extracted from the file.
         """
+        file = cache.get_file(filepath)
         date_of_last = None
         first_row = None
         entries = []
@@ -189,7 +193,7 @@ class StGeorgeImporter(importer.ImporterProtocol):
 
         return entries
 
-    def file_account(self, file):
+    def account(self, filepath):
         """Return an account associated with the given file.
 
         Note: If you don't implement this method you won't be able to move the
@@ -206,7 +210,7 @@ class StGeorgeImporter(importer.ImporterProtocol):
         """
         return self.account_name
 
-    def file_name(self, file):
+    def filename(self, filepath):
         """A filter that optionally renames a file before filing.
 
         This is used to make tidy filenames for filed/stored document files. If
@@ -223,15 +227,15 @@ class StGeorgeImporter(importer.ImporterProtocol):
         account_str = self.account_name.split(":")[-1]
         return f"{account_str}.json"
 
-    def file_date(self, file):
+    def date(self, filepath):
         """Attempt to obtain a date that corresponds to the given file.
 
         Args:
-          file: A cache.FileMemo instance.
+          filepath: Filesystem path to the document being imported.
         Returns:
           A date object, if successful, or None if a date could not be extracted.
           (If no date is returned, the file creation time is used. This is the
           default.)
         """
         # Date of last transaction in the file.
-        return self.extract(file)[-1].date
+        return self.extract(filepath)[-1].date

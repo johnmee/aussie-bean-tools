@@ -96,6 +96,23 @@ class UpbankClient:
         while uri is not None:
             response = requests.get(uri, headers=self._headers(), params=params)
             data = response.json()
+            if "data" not in data:
+                # Up returns {"errors": [...]} on failure (e.g. 401 for an
+                # invalid/revoked token). Surface a clear message instead of
+                # crashing with KeyError: 'data'.
+                errors = data.get("errors") or [{}]
+                detail = "; ".join(
+                    " ".join(
+                        part for part in (
+                            e.get("status"), e.get("title"), e.get("detail")
+                        ) if part
+                    )
+                    for e in errors
+                )
+                raise click.ClickException(
+                    f"Up API request to {path} failed "
+                    f"(HTTP {response.status_code}): {detail or response.text}"
+                )
             result.extend(data["data"])
             try:
                 uri = data["links"]["next"]
@@ -128,9 +145,19 @@ client = None
 
 
 @click.group()
-@click.option('--token', help="Upbank token")
+@click.option(
+    "--token",
+    envvar="UPBANK_TOKEN",
+    help="Upbank personal access token. Prefer the UPBANK_TOKEN environment "
+         "variable so the secret never appears on the command line or in logs.",
+)
 def cli(token):
     global client
+    if not token:
+        raise click.UsageError(
+            "No Upbank token supplied. Set the UPBANK_TOKEN environment variable "
+            "(preferred, keeps the secret off the command line) or pass --token."
+        )
     client = UpbankClient(token)
 
 
