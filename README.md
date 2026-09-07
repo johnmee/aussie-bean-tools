@@ -13,6 +13,7 @@ and autocompleting the routine transactions.
 * downloads transactions with the UpBank API
 * completes new transactions, by fuzzy-matching them against existing transactions
 * imports transactions from a St George Bank CSV file
+* fixes up pending Up transactions once the bank settles or releases them
 * comments out transactions that are already recorded in another account's file
 * sends an email via fastmail.com
 
@@ -33,6 +34,12 @@ $ fuzzer /tmp/up.beancount
 Convert transactions from stgeorge csv to beancount format, and autocomplete...
 ```commandline
 $ python bean.config extract -e master.beancount stgeorge.csv | fuzzer
+```
+After appending the balance directive, fix up any transactions that were still
+pending when they were imported...
+```commandline
+$ upbank-reconcile john-upbank-2026.beancount /tmp/upbank.json \
+    --root master.beancount --account Assets:Bank:John-Upbank --fix
 ```
 
 # Upbank
@@ -75,6 +82,81 @@ Ingest([
   StGeorgeImporter("Assets:Bank:StGeorge:Freedom"),
 ])()
 ```
+
+## Upbank-reconcile
+
+Fix up transactions that were still pending when they were imported.
+
+Up's account balance is the *available* balance — money on hold is already
+deducted from it. So a pending (`HELD`) transaction has to be in the ledger for
+the balance directive to reconcile, and the importer writes one with an
+`up_hold: "<uuid>"` tag to mark it provisional. Such an entry is not final: Up
+may settle it at a **different** amount (a restaurant tip, a foreign currency
+conversion), or release it entirely — in which case it simply disappears from
+the API, since `TransactionStatusEnum` is `HELD|SETTLED` with no "released"
+state and no tombstone. The importer only appends, so it cannot see either
+outcome.
+
+`upbank-reconcile` looks up each tagged entry in a fresh pull and finishes it
+off:
+
+| in the pull | action |
+|---|---|
+| settled, same amount | strip the tag |
+| settled, different amount | correct the amount, strip the tag |
+| absent | comment the entry out — the hold was released |
+| still `HELD` | leave it, report it (loudly once it is over a week old) |
+| out of the pull's window | leave it, report it — absence proves nothing |
+
+Entries are promoted **in place**, so hand-written `;` annotations, narration
+and position all survive. Correcting one also shifts every `balance` directive
+that was snapshotted while the hold was live.
+
+```commandline
+$ upbank-reconcile john-upbank-2026.beancount /tmp/john_upbank.json \
+    --root master.beancount --account Assets:Bank:John-Upbank --fix
+  2026-09-01  4 Pines Brewing Co.   -41.80 -> -42.47 AUD   settled 2026-09-03
+
+  balance directive line 325 -> 181.76 AUD (that snapshot included the hold)
+
+Applied. Verified against the untouched 2026-09-06 assertion (138.96 AUD).
+```
+
+Run it **last**, after `upbank balance` has appended this run's assertion — that
+assertion is the only one known to postdate a release, so it is the evidence the
+run verifies itself against. A `--fix` run writes a `.bak` first and restores it
+(exiting non-zero) if any assertion breaks.
+
+`--root` is required and is *not* the file being edited. The per-account ledgers
+are `include`d by `master.beancount` and have no opening balance of their own, so
+loading one standalone makes every assertion in it appear to fail. Balances come
+from the root; edits stay confined to the file named first.
+
+```commandline
+Usage: upbank-reconcile [OPTIONS] LEDGER PULL
+
+  Promote settled holds in LEDGER using a fresh Up PULL (json).
+
+Options:
+  --account TEXT     Beancount account the Up transactions post to.
+                     [required]
+  --root FILE        Top-level ledger to load for balance semantics -- usually
+                     master.beancount. LEDGER is normally included by it, and
+                     a sub-ledger loaded on its own has no opening balance, so
+                     every assertion in it would appear to fail.  [required]
+  --fix / --dry-run  Apply the edits. The default only reports them.
+  --help             Show this message and exit.
+```
+
+Two cases are reported but never edited automatically, because neither can be
+settled safely from this account alone:
+
+* **a leg of a transfer between your own accounts** — the other leg moves with
+  it, and its balance directives live in a file this run does not hold.
+* **a hold older than the pull window** — it was never fetched, so its absence
+  means nothing. Here the run instead checks whether the gap between Up's
+  reported balance and the ledger's matches the held amount exactly, which is
+  the only evidence left once the API has forgotten the hold.
 
 # St George
 

@@ -15,6 +15,16 @@ so it is not checked here.
 from beancount.core import data
 
 
+def _up_id(entry):
+    """Return the Up transaction id for an entry, or None.
+
+    `__up_id__` is set by the importer on every extracted entry and is invisible
+    to beancount's printer; `up_hold` is the id as written into the ledger for
+    entries that were still unsettled at import time.
+    """
+    return entry.meta.get("__up_id__") or entry.meta.get("up_hold")
+
+
 def _amounts_by_account(entry):
     """Map (account, currency) -> number for each posting carrying an amount."""
     return {
@@ -40,6 +50,22 @@ def exact_amount_comparator(entry1, entry2):
         entry2, data.Transaction
     ):
         return False
+
+    # Up gives every transaction a stable id, and when both entries carry one it
+    # is authoritative: a transaction imported while HELD can settle at a
+    # *different* amount (a tip, a foreign conversion), so it has the same id and
+    # date but a different number. Falling through to the amount comparison
+    # below would call that a new transaction and append it a second time,
+    # double-booking it. Same id is the same transaction, whatever the amount
+    # now says.
+    #
+    # Incoming entries carry `__up_id__` (never written to the ledger). Ledger
+    # entries carry an id only while unsettled, as `up_hold` -- which is exactly
+    # the case where the amount may still move, so nothing is lost by settled
+    # ledger entries having none.
+    id1, id2 = _up_id(entry1), _up_id(entry2)
+    if id1 is not None and id2 is not None:
+        return id1 == id2
 
     if entry1.date != entry2.date:
         return False

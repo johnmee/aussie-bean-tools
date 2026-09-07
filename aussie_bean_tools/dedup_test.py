@@ -98,3 +98,35 @@ def test_dedup_requires_same_date(importer_cls):
     assert not next_day[0].meta.get(
         "__duplicate__"
     ), "same amount on a different date must be kept"
+
+
+def test_dedup_matches_settled_against_held_by_up_id():
+    # A transaction imported while HELD can settle at a *different* amount (a
+    # restaurant tip, a foreign conversion). Its date is unchanged, so the
+    # exact-amount rule above would call it a new transaction and append it a
+    # second time -- double-booking it. Up's id is authoritative here.
+    #
+    # The two sides carry the id under different keys on purpose: the ledger
+    # entry has `up_hold` (written only while unsettled), while the incoming
+    # entry has `__up_id__` (never printed, so it leaves no trace in the
+    # ledger). Matching across the two is what lets this work without requiring
+    # the reconcile pass to have run first.
+    up_id = "41670737-7725-42e7-b7b1-3eece63cf385"
+
+    held = _txn("-41.80")
+    held.meta["up_hold"] = up_id
+    settled = _txn("-42.47")
+    settled.meta["__up_id__"] = up_id
+
+    new = [settled]
+    UpbankImporter(ACCOUNT).deduplicate(new, existing=[held])
+    assert new[0].meta.get(
+        "__duplicate__"
+    ), "same Up id must be a duplicate even though the amount drifted"
+
+    # A different id with a different amount stays a distinct transaction.
+    other = _txn("-42.47")
+    other.meta["__up_id__"] = "00000000-0000-0000-0000-000000000000"
+    new = [other]
+    UpbankImporter(ACCOUNT).deduplicate(new, existing=[held])
+    assert not new[0].meta.get("__duplicate__"), "a different Up id must be kept"

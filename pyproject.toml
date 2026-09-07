@@ -16,9 +16,13 @@ dependencies = [
 
 [project.scripts]
 upbank = "aussie_bean_tools.upbank_client:cli"
+upbank-reconcile = "aussie_bean_tools.upbank_reconcile:cli"
 fuzzer = "aussie_bean_tools.fuzzer:cli"
 bean-comment = "aussie_bean_tools.comment:cli"
 stgeorge = "aussie_bean_tools.stgeorge_client:cli"
+
+[dependency-groups]
+dev = ["pytest>=8"]
 
 [tool.uv]
 package = true

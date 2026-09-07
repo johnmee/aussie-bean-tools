@@ -14,6 +14,10 @@ from .dedup import exact_amount_comparator
 # Upbank (up.com.au–Bendigo Bank) only operates in AUD, afaik.
 CURRENCY = "AUD"
 
+# Up's TransactionStatusEnum. There is no terminal "released" state: a hold that
+# is cancelled rather than settled simply disappears from the API.
+HELD = "HELD"
+
 
 class UpbankImporter(beangulp.Importer):
     """Interface that all source importers need to comply with.
@@ -87,7 +91,7 @@ class UpbankImporter(beangulp.Importer):
         entries = []
 
         for trans in reversed(transactions):
-            trans_id = trans['id']   # Could be used to flag "__duplicate__"s.
+            trans_id = trans['id']
             date_ = date.fromisoformat(trans['attributes']['createdAt'][:10])
             raw_text = trans['attributes']['rawText']
             description = trans['attributes']['description']
@@ -102,8 +106,33 @@ class UpbankImporter(beangulp.Importer):
                 CURRENCY
             )
             posting = data.Posting(self.account_name, value, None, None, None, None)
+
+            # Carry Up's transaction id on every entry, but only *write* it to
+            # the ledger for transactions that are still HELD.
+            #
+            # A HELD transaction is provisional: Up may settle it at a different
+            # amount (a restaurant tip, a foreign conversion), or release it
+            # entirely so it vanishes from the API with no tombstone
+            # (TransactionStatusEnum is HELD|SETTLED only -- there is no
+            # terminal "released" state a poller can observe). The `up_hold` tag
+            # marks those entries as unsettled and lets a later run find the
+            # same transaction again however its amount moved; the reconcile
+            # pass then corrects the entry and strips the tag, so a settled
+            # ledger keeps no import bookkeeping at all. Its presence is the
+            # held marker -- no separate status is needed, and while held the
+            # posting amount already *is* the amount Up is holding.
+            #
+            # `__up_id__` is the same id on every entry for the deduplicator's
+            # benefit. beancount's printer skips keys starting with "__", so it
+            # is never written to the ledger; this is what lets an incoming
+            # settled transaction be matched against a held ledger entry without
+            # requiring reconcile to have run first.
+            meta = data.new_metadata(file.name, 0, {"__up_id__": trans_id})
+            if trans['attributes']['status'] == HELD:
+                meta["up_hold"] = trans_id
+
             txn = data.Transaction(
-                meta=data.new_metadata(file.name, trans_id),
+                meta=meta,
                 date=date_,
                 flag=beancount.core.flags.FLAG_OKAY,
                 payee=description,
@@ -114,8 +143,8 @@ class UpbankImporter(beangulp.Importer):
             )
             entries.append(txn)
 
-        # I'd like to insert a balance line somehow but 'balance' is a vague concept
-        # to upbank... does it include settled, pending, and cleared amounts?
+        # I'd like to insert a balance line but, to upbank, 'balance' means 'available balance',
+        # so includes HELD funds and perhaps others.
         # The api-fetch can only snapshot a 'balance' at the moment of asking.
 
         return entries
