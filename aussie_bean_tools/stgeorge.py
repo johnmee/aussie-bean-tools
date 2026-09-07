@@ -223,9 +223,9 @@ class StGeorgeImporter(beangulp.Importer):
         Returns:
           The tidied up, new filename to store it as.
         """
-        # Use the account name.
+        # Use the account name. St George exports are CSV, not JSON.
         account_str = self.account_name.split(":")[-1]
-        return f"{account_str}.json"
+        return f"{account_str}.csv"
 
     def date(self, filepath):
         """Attempt to obtain a date that corresponds to the given file.
@@ -237,5 +237,8 @@ class StGeorgeImporter(beangulp.Importer):
           (If no date is returned, the file creation time is used. This is the
           default.)
         """
-        # Date of last transaction in the file.
-        return self.extract(filepath)[-1].date
+        # Date of the newest transaction in the file. The CSV is newest-first,
+        # so that is the first entry; the last entry is the closing Balance,
+        # which is dated the day after.
+        entries = self.extract(filepath)
+        return entries[0].date if entries else None

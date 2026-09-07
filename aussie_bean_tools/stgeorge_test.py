@@ -89,3 +89,33 @@ def test_final_balance_dated_day_after_most_recent_transaction():
     assert bal.date == datetime.date(2026, 5, 16)
     assert bal.amount.number == Decimal("250")
     assert bal.amount.currency == "AUD"
+
+
+def test_filing_name_and_date():
+    importer = StGeorgeImporter("Assets:Bank:StGeorge:Freedom")
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as f:
+        f.write(
+            "Date,Description,Debit,Credit,Balance\n"
+            "15/05/2026,May Purchase,100,,250\n"
+            "05/05/2026,May Credit,,50,350\n"
+        )
+        tmpname = f.name
+
+    try:
+        assert importer.filename(tmpname) == "Freedom.csv"
+        # The newest transaction, not the closing Balance dated a day later.
+        assert importer.date(tmpname) == datetime.date(2026, 5, 15)
+    finally:
+        os.unlink(tmpname)
+
+
+def test_filing_date_of_empty_export_is_none():
+    importer = StGeorgeImporter("Assets:Bank:Test")
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as f:
+        f.write("Date,Description,Debit,Credit,Balance\n")
+        tmpname = f.name
+
+    try:
+        assert importer.date(tmpname) is None
+    finally:
+        os.unlink(tmpname)
