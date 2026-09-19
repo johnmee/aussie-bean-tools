@@ -54,12 +54,12 @@ USAGE
 ``--fix``
     Apply the edits. The default (``--dry-run``) only reports them.
 
-Run it **last**, after ``upbank balance`` has appended this run's assertion::
+Run it **last**, after ``upbank assertion`` has appended this run's assertion::
 
     upbank recent 30 > /tmp/john_upbank.json
     python bean.config extract -e master.beancount /tmp/john_upbank.json \\
         | fuzzer >> john-upbank-2026.beancount
-    upbank balance John >> john-upbank-2026.beancount
+    upbank assertion John >> john-upbank-2026.beancount
     upbank-reconcile john-upbank-2026.beancount /tmp/john_upbank.json \\
         --root master.beancount --account Assets:Bank:John-Upbank --fix
 
@@ -67,9 +67,10 @@ The ordering is not cosmetic. That freshly-written assertion is the only one
 known to postdate a release, so it is the evidence the run verifies against;
 earlier assertions were snapshotted while the hold was live and get adjusted.
 
-A ``--fix`` run writes ``LEDGER.bak`` first. If any assertion dated after the
-earliest entry it touched fails afterwards, it restores that backup and exits
-non-zero rather than leaving a half-corrected ledger.
+If any assertion dated after the earliest entry a ``--fix`` run touched fails
+afterwards, it rewrites LEDGER from the lines it read at the start and exits
+non-zero rather than leaving a half-corrected ledger. Git is no substitute:
+the run follows a fresh, uncommitted import, which a checkout would discard.
 
 Sample output::
 
@@ -97,7 +98,6 @@ import itertools
 import json
 import os
 import re
-import shutil
 
 import click
 from beancount import loader
@@ -241,7 +241,7 @@ def newest_assertion(entries, account):
     ]
     if not assertions:
         return None
-    # `upbank balance` dates its directive today, so running the target twice in
+    # `upbank assertion` dates its directive today, so running the target twice in
     # one day leaves two on the same date. The later one in the file is the
     # newer snapshot; tie-break on position so the other is treated as an
     # ordinary intermediate assertion.
@@ -368,9 +368,19 @@ def _rewrite_number(line, after, new_number):
     return head + marker + prefix + new + tail[match.end():]
 
 
+def read_ledger(path):
+    """The ledger's lines, line endings intact, so a rollback is byte-exact."""
+    with open(path, encoding="utf-8", newline="") as handle:
+        return handle.readlines()
+
+
+def write_ledger(path, lines):
+    with open(path, "w", encoding="utf-8", newline="") as handle:
+        handle.writelines(line for line in lines if line is not None)
+
+
 def apply_edits(path, lines, edits, balances, account):
-    """Write the planned edits, keeping a ``.bak`` alongside."""
-    shutil.copy(path, path + ".bak")
+    """Write the planned edits over the ledger's original ``lines``."""
     out = list(lines)
     for lineno, (op, value) in edits.items():
         i = lineno - 1
@@ -383,8 +393,7 @@ def apply_edits(path, lines, edits, balances, account):
     for lineno, number in balances.items():
         i = lineno - 1
         out[i] = _rewrite_number(out[i], account, number)
-    with open(path, "w") as handle:
-        handle.writelines(line for line in out if line is not None)
+    write_ledger(path, out)
 
 
 def failing_assertions(root, account, since):
@@ -554,8 +563,7 @@ def cli(ledger, pull, account, root, fix):
     today = datetime.date.today()
     pending = report(findings, today)
 
-    with open(ledger) as handle:
-        lines = handle.readlines()
+    lines = read_ledger(ledger)
     anchor = newest_assertion(entries, account)
     edits, balances, unreachable = plan(
         entries, findings, lines, account, anchor, target
@@ -588,8 +596,14 @@ def cli(ledger, pull, account, root, fix):
     # Our edits can only move assertions dated after the earliest entry we
     # touch, so that is the horizon we hold ourselves to.
     since = min(f.entry.date for f in findings if f.editable)
-    apply_edits(ledger, lines, edits, balances, account)
-    failures = failing_assertions(root, account, since)
+    try:
+        apply_edits(ledger, lines, edits, balances, account)
+        failures = failing_assertions(root, account, since)
+    except BaseException:
+        # Including Ctrl-C: the original exists only in memory, so put it back
+        # before it is lost.
+        write_ledger(ledger, lines)
+        raise
     if not failures:
         click.echo(
             f"\nApplied. Verified against the untouched {anchor.date} "
@@ -598,7 +612,7 @@ def cli(ledger, pull, account, root, fix):
         )
         return
 
-    shutil.copy(ledger + ".bak", ledger)
+    write_ledger(ledger, lines)
     # The edits were sound as far as the API could tell, so a residual gap is
     # most likely a hold that aged out of the window and was released unseen.
     report_shortfall(entries, account, anchor, pending)

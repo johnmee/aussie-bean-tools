@@ -3,6 +3,9 @@
 Use the Up Bank API to retrieve transactions.
 """
 import datetime
+from decimal import Decimal
+from zoneinfo import ZoneInfo
+
 import click
 import json
 import pprint
@@ -17,6 +20,10 @@ PAGE_SIZE = 100
 # Constants
 HELD = "HELD"
 SETTLED = "SETTLED"
+
+# Up stamps `createdAt` in Sydney time, and the importer dates ledger entries
+# from it, so a ledger day is a Sydney day whatever this machine's clock says.
+UP_TZ = ZoneInfo("Australia/Sydney")
 
 
 class UpbankClient:
@@ -43,10 +50,11 @@ class UpbankClient:
         until = datetime.datetime(year=year, month=month + 1, day=1, tzinfo=local_tz)
         return self.transactions(since, until)
 
-    def get_recent(self, days: int) -> []:
+    def get_recent(self, days: int, account_id: str = None) -> []:
         """Get all recent transactions.
 
         days: int: commencing this many days ago
+        account_id: str: only this account's; or None for every account.
 
         Returns:
               A list of transactions as a dict.
@@ -54,20 +62,26 @@ class UpbankClient:
         local_tz = datetime.datetime.utcnow().astimezone().tzinfo
         now = datetime.datetime.utcnow().replace(tzinfo=local_tz)
         since = now - datetime.timedelta(days=days)
-        return self.transactions(since)
+        return self.transactions(since, account_id=account_id)
 
     def transactions(
-        self, since: datetime.datetime, until: datetime.date = None, status: str = None
+        self,
+        since: datetime.datetime,
+        until: datetime.datetime = None,
+        status: str = None,
+        account_id: str = None,
     ) -> list:
         """Fetch a list of transactions.
 
         Args:
             since: tzaware datetime to start from
             until: tzaware datetime to stop at; or None for all.
-            status: "HELD" or "SETTLED"
+            status: "HELD" or "SETTLED"; or None for both.
+            account_id: only this account's transactions; or None for every
+                account the token can see.
 
         Returns:
-            list of "SETTLED" transactions in dict format.
+            list of transactions in dict format.
         """
         params = dict()
 
@@ -78,7 +92,8 @@ class UpbankClient:
             params.update({"filter[until]": until})
         if status is not None:
             params.update({"filter[status]": status})
-        response = self.get("/transactions", params=params)
+        path = "/transactions" if account_id is None else f"/accounts/{account_id}/transactions"
+        response = self.get(path, params=params)
         return response
 
     def get(self, path, params: dict = None) -> list:
@@ -140,6 +155,38 @@ class UpbankClient:
         return {"Authorization": f"Bearer {self.token}"}
 
 
+def start_of_day_balance(balance: Decimal, transactions: list, day: datetime.date) -> Decimal:
+    """Back `day`'s transactions out of a balance read during `day`.
+
+    Beancount checks a `balance` directive at the *start* of its date, but Up
+    reports the balance *now*, which already includes everything created
+    earlier today. HELD transactions count as well as SETTLED ones, because
+    Up's balance is the available balance with holds already deducted.
+
+    A transaction's day is its `createdAt` date, the same date the importer
+    gives it in the ledger.
+    """
+    moved = sum(
+        (
+            Decimal(t["attributes"]["amount"]["value"])
+            for t in transactions
+            if t["attributes"]["createdAt"][:10] == day.isoformat()
+        ),
+        Decimal(0),
+    )
+    return balance - moved
+
+
+def _live_balance(client) -> tuple:
+    """The account's id and its balance right now, as the Up app shows it."""
+    acct = client.accounts()[0]
+    return acct["id"], Decimal(acct["attributes"]["balance"]["value"])
+
+
+def _fingerprint(transactions: list) -> set:
+    return {(t["id"], t["attributes"]["amount"]["value"]) for t in transactions}
+
+
 # Global Upbank client
 client = None
 
@@ -181,12 +228,43 @@ def categories():
 @cli.command()
 @click.argument("account", type=click.types.STRING)
 def balance(account):
-    """Fetch the current balance of the account."""
+    """Show the account's balance right now, as the Up app does."""
     global client
-    response = client.accounts()
-    today = datetime.datetime.today().date()
-    balance = float(response[0]['attributes']['balance']['value'])
-    click.echo(f"{today} balance Assets:Bank:{account}-Upbank \t\t {balance} AUD\n")
+    _, current = _live_balance(client)
+    click.echo(f"{account}: {current} AUD")
+
+
+@cli.command()
+@click.argument("account", type=click.types.STRING)
+def assertion(account):
+    """Print a ledger balance assertion for the start of today.
+
+    Beancount checks a `balance` directive at the start of its date, while
+    Up's balance runs through the day. Stamping Up's current balance with
+    today's date fails whenever something was spent earlier today; stamping
+    it with tomorrow's fails when something is spent later today. So today's
+    transactions are backed out instead, giving the balance the ledger must
+    show at midnight.
+    """
+    global client
+    today = datetime.datetime.now(UP_TZ).date()
+    since = datetime.datetime.combine(today, datetime.time(), tzinfo=UP_TZ)
+    # The balance and the transactions are separate requests. Pulling the
+    # transactions on both sides of the balance read, and retrying until the
+    # two pulls agree, ensures nothing landed in between that the balance
+    # includes but the subtraction misses (or vice versa).
+    account_id, _ = _live_balance(client)
+    for _ in range(3):
+        pulled = client.transactions(since, account_id=account_id)
+        _, current = _live_balance(client)
+        if _fingerprint(client.transactions(since, account_id=account_id)) == _fingerprint(pulled):
+            break
+    else:
+        raise click.ClickException(
+            "Up transactions kept changing while the balance was read; try again."
+        )
+    opening = start_of_day_balance(current, pulled, today)
+    click.echo(f"{today} balance Assets:Bank:{account}-Upbank \t\t {opening} AUD\n")
 
 
 @cli.command()
@@ -204,9 +282,13 @@ def month(year, month):
 @click.argument("days", type=click.types.INT, default=60)
 def recent(days):
     """Download a sequence of transactions.
+
+    Only the account whose balance `balance` and `assertion` report, so a saver
+    added later cannot leak into that account's ledger.
     """
     global client
-    transactions = client.get_recent(days)
+    account_id, _ = _live_balance(client)
+    transactions = client.get_recent(days, account_id=account_id)
     click.echo(json.dumps(transactions, indent=3))
 
 

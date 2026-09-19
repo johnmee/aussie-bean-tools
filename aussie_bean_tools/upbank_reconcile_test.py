@@ -93,6 +93,7 @@ def test_drifted_hold_is_promoted_in_place(tmp_path):
     # one is the evidence and is left alone.
     assert "957.53 AUD" in text, "anchor assertion untouched"
     assert "958.20 AUD" not in text, "intermediate assertion adjusted"
+    assert list(tmp_path.glob("*.bak")) == [], "no backup file left behind"
 
 
 def test_released_hold_is_commented_out(tmp_path):
@@ -120,6 +121,7 @@ def test_wrong_conclusion_rolls_back(tmp_path):
     assert result.exit_code != 0
     assert "Rolled back" in result.output
     assert ledger.read_text() == original, "ledger restored exactly"
+    assert list(tmp_path.glob("*.bak")) == [], "rolled back from memory, not a file"
 
 
 def test_still_held_is_reported_and_left_alone(tmp_path):

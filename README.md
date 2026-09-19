@@ -1,10 +1,3 @@
-# TODO
-
-* add 'usage'
-  * explicit upbank token mustering
-* decide what to do with fastmail api (fix/abandon)
-* is bean-comment still a useful thing?
-
 # Aussie Bean Tools
 
 Tools for using [beancount](https://beancount.github.io/) with [Up Bank](https://up.com.au/), [St George Bank](https://www.stgeorge.com/), [Fastmail](https://fastmail.com/), 
@@ -52,7 +45,8 @@ Options:
   --help        Show this message and exit.
 
 Commands:
-  balance     Fetch the current balance of the account.
+  assertion   Print a ledger balance assertion for the start of today.
+  balance     Show the account's balance right now, as the Up app does.
   categories  Get a list of transaction categories.
   month       Download a sequence of transactions.
   ping        Send a ping to Upbank, to verify your token and their API...
@@ -122,10 +116,10 @@ $ upbank-reconcile john-upbank-2026.beancount /tmp/john_upbank.json \
 Applied. Verified against the untouched 2026-09-06 assertion (138.96 AUD).
 ```
 
-Run it **last**, after `upbank balance` has appended this run's assertion — that
+Run it **last**, after `upbank assertion` has appended this run's assertion — that
 assertion is the only one known to postdate a release, so it is the evidence the
-run verifies itself against. A `--fix` run writes a `.bak` first and restores it
-(exiting non-zero) if any assertion breaks.
+run verifies itself against. If any assertion breaks, a `--fix` run restores the
+ledger exactly as it found it (exiting non-zero); no backup file is written.
 
 `--root` is required and is *not* the file being edited. The per-account ledgers
 are `include`d by `master.beancount` and have no opening balance of their own, so
@@ -308,3 +302,10 @@ Usage: bean-comment [OPTIONS] ACCOUNTS...
           | bean-comment Assets:Bank:John-Upbank Assets:Bank:Fiona-Upbank \
           >> joint-freedom-2026.beancount
 ```
+
+# TODO
+
+* add 'usage'
+  * explicit upbank token mustering
+* decide what to do with fastmail api (fix/abandon)
+* is bean-comment still a useful thing?
